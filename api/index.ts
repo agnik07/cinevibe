@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import seedMovies from '../server/seedMovies.json' assert { type: 'json' };
+import seedMovies from '../server/seedMovies.json';
 import { MovieRecord, rankMoviesByVibes, parseNaturalLanguageQuery } from '../server/vibeEngine';
 
 const app = express();
