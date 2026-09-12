@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Sparkles, ChevronRight } from 'lucide-react';
 import { CuratedCollection, Movie } from '../types';
 import { MovieCard } from './MovieCard';
+import seedMoviesData from '../data/seedMovies.json';
+import { rankMoviesByVibes, MovieRecord } from '../../server/vibeEngine';
 
 interface ExploreRailsProps {
   onSelectCollectionVibes: (vibes: string[], country?: string) => void;
@@ -18,14 +20,56 @@ export const ExploreRails: React.FC<ExploreRailsProps> = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const localDatabase = seedMoviesData as unknown as MovieRecord[];
+    const fallbackCollections: CuratedCollection[] = [
+      {
+        id: 'build_something',
+        title: 'Movies That Make You Want to Build Something',
+        subtitle: 'Stories about founders, visionaries, and relentless builders.',
+        vibes: ['business', 'entrepreneurship', 'ambition', 'motivation'],
+        movies: rankMoviesByVibes(localDatabase, ['business', 'entrepreneurship'], undefined, 7.5).slice(0, 10) as unknown as Movie[],
+      },
+      {
+        id: 'refused_to_quit',
+        title: 'Movies About People Who Refused to Quit',
+        subtitle: 'Iron fortitude when everyone else surrendered.',
+        vibes: ['resilience', 'failure_comeback', 'courage', 'motivation'],
+        movies: rankMoviesByVibes(localDatabase, ['resilience', 'failure_comeback'], undefined, 7.5).slice(0, 10) as unknown as Movie[],
+      },
+      {
+        id: 'best_indian_cinema',
+        title: 'Best of Indian Cinema',
+        subtitle: 'Iconic stories across languages that redefined Indian cinema.',
+        vibes: ['emotions', 'truth_reality', 'life_lessons'],
+        movies: rankMoviesByVibes(localDatabase, ['life_lessons', 'emotions'], 'India', 8.0).slice(0, 10) as unknown as Movie[],
+      },
+      {
+        id: 'mind_games',
+        title: 'Movies That Make You Think & Second Guess',
+        subtitle: 'Mind-bending twists, secrets, and high-tension psychological puzzles.',
+        vibes: ['mystery_mindgames', 'dark_intense', 'philosophical'],
+        movies: rankMoviesByVibes(localDatabase, ['mystery_mindgames', 'dark_intense'], undefined, 7.5).slice(0, 10) as unknown as Movie[],
+      },
+      {
+        id: 'feel_good_warmth',
+        title: 'Movies That Feel Like a Cozy Hug',
+        subtitle: 'Wholesome warmth, comfort, and joyful optimism.',
+        vibes: ['feel_good', 'fun', 'friendship', 'family'],
+        movies: rankMoviesByVibes(localDatabase, ['feel_good', 'fun'], undefined, 7.5).slice(0, 10) as unknown as Movie[],
+      },
+    ];
+
     fetch('/api/collections')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error('Collections API non-200');
+        return res.json();
+      })
       .then((data) => {
-        setCollections(data.collections || []);
+        setCollections(data.collections || fallbackCollections);
         setLoading(false);
       })
-      .catch((err) => {
-        console.error('Failed to fetch collections:', err);
+      .catch(() => {
+        setCollections(fallbackCollections);
         setLoading(false);
       });
   }, []);

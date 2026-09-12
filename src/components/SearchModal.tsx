@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, Star, ExternalLink, Film } from 'lucide-react';
 import { Movie } from '../types';
+import seedMoviesData from '../data/seedMovies.json';
+import { MovieRecord } from '../../server/vibeEngine';
 
 interface SearchModalProps {
   onClose: () => void;
@@ -20,12 +22,27 @@ export const SearchModal: React.FC<SearchModalProps> = ({ onClose }) => {
     const timer = setTimeout(() => {
       setLoading(true);
       fetch(`/api/movies/search?q=${encodeURIComponent(query.trim())}`)
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) throw new Error('Search API non-200');
+          return res.json();
+        })
         .then((data) => {
           setResults(data.movies || []);
           setLoading(false);
         })
-        .catch(() => setLoading(false));
+        .catch(() => {
+          const q = query.toLowerCase().trim();
+          const matches = (seedMoviesData as unknown as MovieRecord[]).filter((m) =>
+            m.title.toLowerCase().includes(q) ||
+            (m.director && m.director.toLowerCase().includes(q)) ||
+            (m.cast && m.cast.some((c) => c.toLowerCase().includes(q))) ||
+            (m.country && m.country.toLowerCase().includes(q)) ||
+            (m.language && m.language.toLowerCase().includes(q)) ||
+            (m.genres && m.genres.some((g) => g.toLowerCase().includes(q)))
+          );
+          setResults(matches.slice(0, 20) as unknown as Movie[]);
+          setLoading(false);
+        });
     }, 250);
 
     return () => clearTimeout(timer);

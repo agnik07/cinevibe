@@ -11,6 +11,8 @@ import { SurpriseMeModal } from './components/SurpriseMeModal';
 import { PickForMeQuiz } from './components/PickForMeQuiz';
 import { SearchModal } from './components/SearchModal';
 import { Movie, FilterState } from './types';
+import seedMoviesData from './data/seedMovies.json';
+import { rankMoviesByVibes, parseNaturalLanguageQuery, MovieRecord } from '../server/vibeEngine';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'discover' | 'explore' | 'watchlist' | 'about'>('discover');
@@ -78,14 +80,29 @@ export const App: React.FC = () => {
     if (filters.sort) queryParams.set('sort', filters.sort);
 
     fetch(`/api/movies/discover?${queryParams.toString()}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`API error ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
         setMovies(data.movies || []);
         setMatchingCount(data.total || 0);
         setLoading(false);
       })
       .catch((err) => {
-        console.error('API Error:', err);
+        console.warn('API fetch failed, performing client-side ranking fallback:', err);
+        const fallbackMovies = rankMoviesByVibes(
+          seedMoviesData as unknown as MovieRecord[],
+          filters.vibes,
+          filters.country,
+          filters.rating,
+          filters.yearMin,
+          filters.yearMax,
+          filters.language,
+          filters.sort
+        );
+        setMovies(fallbackMovies.slice(0, 24) as unknown as Movie[]);
+        setMatchingCount(fallbackMovies.length);
         setLoading(false);
       });
   }, [filters]);
@@ -151,7 +168,10 @@ export const App: React.FC = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query }),
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error('API NL error');
+        return res.json();
+      })
       .then((data) => {
         if (data.parsed) {
           setFilters((prev) => ({
@@ -168,10 +188,33 @@ export const App: React.FC = () => {
           setMatchingCount(data.total || 0);
         }
       })
-      .catch((err) => console.error('NL Search Error:', err));
+      .catch(() => {
+        const parsed = parseNaturalLanguageQuery(query);
+        setFilters((prev) => ({
+          ...prev,
+          vibes: parsed.vibes || [],
+          country: parsed.country || 'All Countries',
+          language: parsed.language || 'All Languages',
+          rating: parsed.minRating || 0,
+          yearMin: parsed.yearMin,
+          yearMax: parsed.yearMax,
+        }));
+        const fallbackMovies = rankMoviesByVibes(
+          seedMoviesData as unknown as MovieRecord[],
+          parsed.vibes,
+          parsed.country,
+          parsed.minRating,
+          parsed.yearMin,
+          parsed.yearMax,
+          parsed.language,
+          'best_match'
+        );
+        setMovies(fallbackMovies.slice(0, 24) as unknown as Movie[]);
+        setMatchingCount(fallbackMovies.length);
+      });
   };
 
-  // Trigger Surprise Me
+  // Surprise Me Random Pick handler
   const handleSurpriseMe = () => {
     const queryParams = new URLSearchParams();
     if (filters.vibes.length > 0) queryParams.set('vibes', filters.vibes.join(','));
@@ -180,12 +223,31 @@ export const App: React.FC = () => {
     if (filters.rating > 0) queryParams.set('rating', filters.rating.toString());
 
     fetch(`/api/movies/surprise?${queryParams.toString()}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error('Surprise API error');
+        return res.json();
+      })
       .then((data) => {
         if (data.movie) {
           setSurpriseMovie(data.movie);
           setShowSurpriseModal(true);
         }
+      })
+      .catch(() => {
+        const fallbackPool = rankMoviesByVibes(
+          seedMoviesData as unknown as MovieRecord[],
+          filters.vibes,
+          filters.country,
+          filters.rating,
+          filters.yearMin,
+          filters.yearMax,
+          filters.language,
+          'best_match'
+        );
+        const pool = fallbackPool.length > 0 ? fallbackPool : (seedMoviesData as unknown as MovieRecord[]);
+        const randomMovie = pool[Math.floor(Math.random() * pool.length)];
+        setSurpriseMovie(randomMovie as unknown as Movie);
+        setShowSurpriseModal(true);
       });
   };
 
