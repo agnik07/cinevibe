@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import seedMovies from '../server/seedMovies.json';
+import fs from 'fs';
+import path from 'path';
 import { MovieRecord, rankMoviesByVibes, parseNaturalLanguageQuery } from '../server/vibeEngine';
 
 const app = express();
@@ -8,7 +9,21 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const moviesDatabase: MovieRecord[] = seedMovies as unknown as MovieRecord[];
+let moviesDatabase: MovieRecord[] = [];
+try {
+  const seedPath = path.join(process.cwd(), 'server', 'seedMovies.json');
+  if (fs.existsSync(seedPath)) {
+    const raw = fs.readFileSync(seedPath, 'utf-8');
+    moviesDatabase = JSON.parse(raw);
+  } else {
+    const fallbackPath = path.join(__dirname, '..', 'server', 'seedMovies.json');
+    if (fs.existsSync(fallbackPath)) {
+      moviesDatabase = JSON.parse(fs.readFileSync(fallbackPath, 'utf-8'));
+    }
+  }
+} catch (e) {
+  console.error('Error loading seedMovies.json in Vercel function:', e);
+}
 
 // 1. DISCOVER MOVIES ENDPOINT
 app.get('/api/movies/discover', (req: Request, res: Response) => {
