@@ -73,22 +73,40 @@ app.get('/api/movies/search', (req: Request, res: Response) => {
     return res.json({ total: 0, movies: [] });
   }
 
+  let targetRating = 0;
+  if (q.includes('9+') || q.includes('9.0')) targetRating = 9.0;
+  else if (q.includes('8.5+') || q.includes('8.5')) targetRating = 8.5;
+  else if (q.includes('8+') || q.includes('8.0') || q.includes('imdb 8') || q.includes('rating 8')) targetRating = 8.0;
+  else if (q.includes('7.5+') || q.includes('7.5')) targetRating = 7.5;
+  else if (q.includes('7+')) targetRating = 7.0;
+
+  const cleanQ = q.replace(/(9\+|8\.5\+|8\+|8\.0|7\.5\+|7\+|imdb 8|rating 8|imdb|rating)/gi, '').trim();
+
   const matches = moviesDatabase.filter((m) => {
+    const rating = m.imdbRating || m.tmdbRating || 0;
+    if (targetRating > 0 && rating < targetRating - 0.05) return false;
+
+    if (!cleanQ) return true;
+
     return (
-      m.title.toLowerCase().includes(q) ||
-      (m.director && m.director.toLowerCase().includes(q)) ||
-      (m.cast && m.cast.some((c) => c.toLowerCase().includes(q))) ||
-      (m.country && m.country.toLowerCase().includes(q)) ||
-      (m.language && m.language.toLowerCase().includes(q)) ||
-      (m.genres && m.genres.some((g) => g.toLowerCase().includes(q)))
+      m.title.toLowerCase().includes(cleanQ) ||
+      (m.director && m.director.toLowerCase().includes(cleanQ)) ||
+      (m.cast && m.cast.some((c) => c.toLowerCase().includes(cleanQ))) ||
+      (m.country && m.country.toLowerCase().includes(cleanQ)) ||
+      (m.language && m.language.toLowerCase().includes(cleanQ)) ||
+      (m.genres && m.genres.some((g) => g.toLowerCase().includes(cleanQ))) ||
+      (m.overview && m.overview.toLowerCase().includes(cleanQ))
     );
   });
 
+  matches.sort((a, b) => (b.imdbRating || b.tmdbRating || 0) - (a.imdbRating || a.tmdbRating || 0));
+
   res.json({
     total: matches.length,
-    movies: matches.slice(0, 20),
+    movies: matches.slice(0, 30),
   });
 });
+
 
 // 3. SURPRISE ME ENDPOINT
 app.get('/api/movies/surprise', (req: Request, res: Response) => {
